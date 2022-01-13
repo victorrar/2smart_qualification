@@ -1,5 +1,6 @@
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cert-err58-cpp"
+
 #include <Arduino.h>
 #include <2smart.h>
 

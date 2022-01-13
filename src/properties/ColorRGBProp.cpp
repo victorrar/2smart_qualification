@@ -4,7 +4,6 @@
 
 #include "ColorRGBProp.h"
 
-#include <utility>
 #include "node/node.h"
 #include "property/property.h"
 

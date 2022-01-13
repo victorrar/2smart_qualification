@@ -35,36 +35,26 @@ bool ApplicationNode::Init(Homie *homie) {
     ledcAttachPin(GPIO_LED_B, LEDC_CHANNEL_B);
 
     sonarTimer = new SimpleTimer();
-    hc = new UltraSonicDistanceSensor(GPIO_NUM_16, GPIO_NUM_17);
+    hc = new UltraSonicDistanceSensor(GPIO_SONAR_TX, GPIO_SONAR_RX, SONAR_LIMIT);
 
     sonarTimer->setInterval(100, sonarCallbackStub);
 
     display = new Adafruit_SSD1306(128, 64, &Wire, -1);
     display->begin(SSD1306_SWITCHCAPVCC, 0x3C);
 
-    Serial.println("begin");
     display->clearDisplay();
-    display->display();
-    Serial.println("display");
-    delay(1000);
-
     display->setTextSize(2);
     display->setTextColor(WHITE);
-    display->setCursor(10, 10);
-    display->print(F("init"));
-
-    display->drawFastHLine(12, 32 - 16, 11, WHITE);
+    display->setCursor(5, 15);
+    display->print(F("Init..."));
     display->display();
 
-    Serial.println("init");
     isInitialized = true;
     return state;
 }
 
 void ApplicationNode::HandleCurrentState() {
-
     Node::HandleCurrentState();
-
     if (!isInitialized)
         return;
 
@@ -72,7 +62,6 @@ void ApplicationNode::HandleCurrentState() {
     ColorRGBProp *pMode = (ColorRGBProp *) (properties_.find("mode")->second);
 
     if (pMode->HasNewValue()) {
-
         auto it = find_if(modesMap.begin(), modesMap.end(),
                           [pMode](const std::pair<modes, String> &p) {
                               return p.second == pMode->GetValue();
@@ -94,33 +83,33 @@ void ApplicationNode::HandleCurrentState() {
             }
             break;
         case modes::Threshold:
-            if (distanceDeque.back() > HIGH_THRESHOLD) {
-                ledcWrite(LEDC_CHANNEL_R, 4095);
-                ledcWrite(LEDC_CHANNEL_G, 0);
-                ledcWrite(LEDC_CHANNEL_B, 0);
-            } else if (distanceDeque.back() < LOW_THRESHOLD) {
-                ledcWrite(LEDC_CHANNEL_R, 0);
-                ledcWrite(LEDC_CHANNEL_G, 4095);
-                ledcWrite(LEDC_CHANNEL_B, 0);
-            } else {
-                auto pwmVal = map(distanceDeque.back(), LOW_THRESHOLD, HIGH_THRESHOLD, 0, 255);
-                pwmVal = constrain(pwmVal, 0, 255);
-                ledcWrite(LEDC_CHANNEL_R, gamma_lut[pwmVal]);
-                ledcWrite(LEDC_CHANNEL_G, gamma_lut[255 - pwmVal]);
-                ledcWrite(LEDC_CHANNEL_B, 0);
+            if (sonarFlag) {
+                if (distanceDeque.back() > HIGH_THRESHOLD) {
+                    ledcWrite(LEDC_CHANNEL_R, 4095);
+                    ledcWrite(LEDC_CHANNEL_G, 0);
+                    ledcWrite(LEDC_CHANNEL_B, 0);
+                } else if (distanceDeque.back() < LOW_THRESHOLD) {
+                    ledcWrite(LEDC_CHANNEL_R, 0);
+                    ledcWrite(LEDC_CHANNEL_G, 4095);
+                    ledcWrite(LEDC_CHANNEL_B, 0);
+                } else {
+                    auto pwmVal = map(distanceDeque.back(), LOW_THRESHOLD, HIGH_THRESHOLD, 0, 255);
+                    pwmVal = constrain(pwmVal, 0, 255);
+                    ledcWrite(LEDC_CHANNEL_R, gamma_lut[pwmVal]);
+                    ledcWrite(LEDC_CHANNEL_G, gamma_lut[255 - pwmVal]);
+                    ledcWrite(LEDC_CHANNEL_B, 0);
+                }
             }
             break;
         case modes::Doppler:
-
             if (sonarFlag) {
-                float oldAvg = std::accumulate(distanceDeque.begin(), distanceDeque.begin() + distanceDeque.size() / 2,
+                float oldAvg = std::accumulate(distanceDeque.begin(),
+                                               distanceDeque.begin() + distanceDeque.size() / 2,
                                                0);
-                float newAvg = std::accumulate(distanceDeque.begin() + distanceDeque.size() / 2, distanceDeque.end(),
+                float newAvg = std::accumulate(distanceDeque.begin() + distanceDeque.size() / 2,
+                                               distanceDeque.end(),
                                                0);
 
-                Serial.print(oldAvg);
-                Serial.print(" ");
-                Serial.println(newAvg);
                 auto pwmVal = map((long) ((newAvg - oldAvg) * 10), -300, 300, -127, 127);
                 pwmVal = constrain(pwmVal, -127, 127);
 
@@ -132,7 +121,6 @@ void ApplicationNode::HandleCurrentState() {
     }
 
     if (display != nullptr && distanceDeque.size() == DISTANCE_BUF_SIZE && sonarFlag) {
-        Serial.println("q");
         display->clearDisplay();
         auto pixelPerValue = 128 / DISTANCE_BUF_SIZE;
         auto iter = distanceDeque.rbegin();
@@ -140,27 +128,18 @@ void ApplicationNode::HandleCurrentState() {
             Serial.println("w");
             auto yVal = map(*iter, LOW_THRESHOLD, HIGH_THRESHOLD, 0, 32);
             yVal = constrain(yVal, 0, 32);
-            display->drawFastHLine(i * pixelPerValue, 32 - yVal, pixelPerValue-1, WHITE);
+            display->drawFastHLine(i * pixelPerValue, 32 - yVal, pixelPerValue - 1, WHITE);
             iter++;
         }
 
-        Serial.println("e");
         display->setTextSize(1);
         display->setTextColor(WHITE);
-        Serial.println("r");
-        display->setCursor(0, 34);
-        Serial.println("y");
+        display->setCursor(0, 40);
         display->print(F("Distance = "));
-        Serial.println("t");
         display->print(distanceDeque.back());
-        Serial.println("b");
         display->println(F("cm"));
-        Serial.println("f");
         display->display();
-
     }
-
-
     sonarFlag = false;
     sonarTimer->run();
 }
@@ -169,7 +148,7 @@ void ApplicationNode::sonarCallback() {
     float dist = hc->measureDistanceCm();
 
     if (dist < 0)
-        return;
+        dist = 101;
 
     distanceDeque.push_back(dist);
     if (distanceDeque.size() > DISTANCE_BUF_SIZE)
