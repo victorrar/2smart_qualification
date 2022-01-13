@@ -1,6 +1,5 @@
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "cert-err58-cpp"
-
 #include <Arduino.h>
 #include <2smart.h>
 
@@ -20,14 +19,12 @@ ApplicationNode *appNode = nullptr;
 
 void setup() {
     Serial.begin(115200);
-
     appNode = new ApplicationNode("Lighter", "lighter", smartcloud.GetDevice());  // (name, id,device)
 
     auto *led_state = new Property("Blinker", "state", appNode, SENSOR, true, true, "boolean");
     auto *pLedColor = new ColorRGBProp("Led color", "color", appNode, SENSOR, true, true);
     auto *pDistance = new Property("Measured distance", "dist", appNode, SENSOR, false, false, "", "");
     auto *pMode = new Property("Mode", "mode", appNode, SENSOR, true, true, "enum", ApplicationNode::GetModes());
-
     smartcloud.setup();
 }
 

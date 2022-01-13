@@ -38,11 +38,35 @@ bool ApplicationNode::Init(Homie *homie) {
     hc = new UltraSonicDistanceSensor(GPIO_NUM_16, GPIO_NUM_17);
 
     sonarTimer->setInterval(100, sonarCallbackStub);
+
+    display = new Adafruit_SSD1306(128, 64, &Wire, -1);
+    display->begin(SSD1306_SWITCHCAPVCC, 0x3C);
+
+    Serial.println("begin");
+    display->clearDisplay();
+    display->display();
+    Serial.println("display");
+    delay(1000);
+
+    display->setTextSize(2);
+    display->setTextColor(WHITE);
+    display->setCursor(10, 10);
+    display->print(F("init"));
+
+    display->drawFastHLine(12, 32 - 16, 11, WHITE);
+    display->display();
+
+    Serial.println("init");
+    isInitialized = true;
     return state;
 }
 
 void ApplicationNode::HandleCurrentState() {
+
     Node::HandleCurrentState();
+
+    if (!isInitialized)
+        return;
 
     ColorRGBProp *pColor = (ColorRGBProp *) (properties_.find("color")->second);
     ColorRGBProp *pMode = (ColorRGBProp *) (properties_.find("mode")->second);
@@ -89,7 +113,6 @@ void ApplicationNode::HandleCurrentState() {
         case modes::Doppler:
 
             if (sonarFlag) {
-                sonarFlag = false;
                 float oldAvg = std::accumulate(distanceDeque.begin(), distanceDeque.begin() + distanceDeque.size() / 2,
                                                0);
                 float newAvg = std::accumulate(distanceDeque.begin() + distanceDeque.size() / 2, distanceDeque.end(),
@@ -108,7 +131,37 @@ void ApplicationNode::HandleCurrentState() {
             break;
     }
 
+    if (display != nullptr && distanceDeque.size() == DISTANCE_BUF_SIZE && sonarFlag) {
+        Serial.println("q");
+        display->clearDisplay();
+        auto pixelPerValue = 128 / DISTANCE_BUF_SIZE;
+        auto iter = distanceDeque.rbegin();
+        for (int i = 0; i < DISTANCE_BUF_SIZE; ++i) {
+            Serial.println("w");
+            auto yVal = map(*iter, LOW_THRESHOLD, HIGH_THRESHOLD, 0, 32);
+            yVal = constrain(yVal, 0, 32);
+            display->drawFastHLine(i * pixelPerValue, 32 - yVal, pixelPerValue-1, WHITE);
+            iter++;
+        }
 
+        Serial.println("e");
+        display->setTextSize(1);
+        display->setTextColor(WHITE);
+        Serial.println("r");
+        display->setCursor(0, 34);
+        Serial.println("y");
+        display->print(F("Distance = "));
+        Serial.println("t");
+        display->print(distanceDeque.back());
+        Serial.println("b");
+        display->println(F("cm"));
+        Serial.println("f");
+        display->display();
+
+    }
+
+
+    sonarFlag = false;
     sonarTimer->run();
 }
 
@@ -131,6 +184,7 @@ void ApplicationNode::sonarCallback() {
 ApplicationNode::~ApplicationNode() {
     delete sonarTimer;
     delete hc;
+    delete display;
 }
 
 String ApplicationNode::GetModes() {

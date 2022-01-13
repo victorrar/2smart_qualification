@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "node/node.h"
+#include "Adafruit_SSD1306.h"
 
 
 class ApplicationNode : public Node {
@@ -40,7 +41,8 @@ protected:
     ApplicationNode::modes currentMode = modes::Static;
     std::deque<float> distanceDeque;
     bool sonarFlag = false;
-
+    Adafruit_SSD1306 *display;
+    bool isInitialized = false;
 };
 
 
